@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:web_socket_channel/io.dart';
@@ -29,11 +31,13 @@ class _WebRTCPageState extends State<WebRTCPage> {
   TextEditingController _remoteIdController = TextEditingController();
   TextEditingController _textController = TextEditingController();
   List<String> _messages = [];
+  // String? _ipAddress;
 
   @override
   void initState() {
     super.initState();
-    _channel = IOWebSocketChannel.connect('ws://106.51.106.43');
+    // _fetchIpAddress();
+    _channel = IOWebSocketChannel.connect('ws://172.20.10.3:3000');
     _initializeWebRTC();
 
     _channel.stream.listen((message) {
@@ -55,6 +59,28 @@ class _WebRTCPageState extends State<WebRTCPage> {
       }
     });
   }
+
+  // Future<String> getIpAddress() async {
+  //   try {
+  //     for (var interface in await NetworkInterface.list()) {
+  //       for (var address in interface.addresses) {
+  //         if (address.type == InternetAddressType.IPv4) {
+  //           return address.address;
+  //         }
+  //       }
+  //     }
+  //   } catch (e) {
+  //     print('Failed to get IP address: $e');
+  //   }
+  //   return 'Failed to get IP address';
+  // }
+
+  // Future<void> _fetchIpAddress() async {
+  //   String ip = await getIpAddress();
+  //   setState(() {
+  //     _ipAddress = ip;
+  //   });
+  // }
 
   Future<void> _initializeWebRTC() async {
     final configuration = {
@@ -146,7 +172,7 @@ class _WebRTCPageState extends State<WebRTCPage> {
       body: Column(
         children: <Widget>[
           Text(
-            _selfId ?? "Id not found",
+             _selfId ?? 'Assigning Local Id...',
           ),
           SizedBox(height: 10,),
           TextField(
