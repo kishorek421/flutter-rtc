@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_rtc/list_page.dart';
+import 'package:flutter_rtc/login_page.dart';
 import 'package:flutter_rtc/web_rtc_page.dart';
 import 'package:hive_flutter/adapters.dart';
 
@@ -15,7 +17,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      home: WebRtcPage(),
+      home: LoginPage(),
     );
   }
 }
