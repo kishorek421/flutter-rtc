@@ -11,7 +11,7 @@ class AddUserPage extends StatefulWidget {
 }
 
 class _AddUserPageState extends State<AddUserPage> {
-  TextEditingController _mobileNumberController = TextEditingController();
+  TextEditingController _phoneNumberController = TextEditingController();
   RTCPeerConnection? _peerConnection;
 
   @override
@@ -30,62 +30,47 @@ class _AddUserPageState extends State<AddUserPage> {
 
     _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
       if (candidate != null) {
-        _storeCandidate(candidate);
+        var userBox = Hive.box<User>('users');
+        var newUser = userBox.get(_phoneNumberController.text)!;
+        newUser.candidate = json.encode(candidate.toMap());
+        userBox.put(_phoneNumberController.text, newUser);
       }
     };
-
-    _createOffer();
   }
 
-  void _createOffer() async {
+  Future<void> _addNewUser() async {
+    var userBox = Hive.box<User>('users');
+    var user = User(_phoneNumberController.text, '', '');
+    userBox.put(_phoneNumberController.text, user);
+
     RTCSessionDescription description = await _peerConnection!.createOffer();
     await _peerConnection!.setLocalDescription(description);
-    _storeSDP(description);
-  }
-
-  void _storeSDP(RTCSessionDescription description) async {
-    var box = Hive.box<User>('users');
-    var user = User(_mobileNumberController.text, json.encode(description.toMap()), '');
-    await box.add(user);
-  }
-
-  void _storeCandidate(RTCIceCandidate candidate) async {
-    var box = Hive.box<User>('users');
-    var user = box.values.firstWhere((user) => user.mobileNumber == _mobileNumberController.text);
-    user.candidate = json.encode(candidate.toMap());
-    await user.save();
+    user.sdp = json.encode(description.toMap());
+    userBox.put(_phoneNumberController.text, user);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Add New User'),
-      ),
+      appBar: AppBar(title: Text('Add New User')),
       body: Padding(
         padding: const EdgeInsets.all(8.0),
         child: Column(
-          children: <Widget>[
+          children: [
             TextField(
-              controller: _mobileNumberController,
-              decoration: InputDecoration(labelText: 'Mobile Number'),
+              controller: _phoneNumberController,
+              decoration: InputDecoration(labelText: 'Phone Number'),
             ),
-            SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
+                await _addNewUser();
                 Navigator.pop(context);
               },
-              child: Text('Save'),
+              child: Text('Add'),
             ),
           ],
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _peerConnection?.close();
-    super.dispose();
   }
 }

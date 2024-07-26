@@ -20,7 +20,6 @@ class ChatPage extends StatefulWidget {
 class _ChatPageState extends State<ChatPage> {
   RTCPeerConnection? _peerConnection;
   RTCDataChannel? _dataChannel;
-  late WebSocketChannel _channel;
   TextEditingController _textController = TextEditingController();
   List<String> _messages = [];
 
@@ -28,24 +27,6 @@ class _ChatPageState extends State<ChatPage> {
   void initState() {
     super.initState();
     _initializeWebRTC();
-    _initializeWebSocket();
-  }
-
-  Future<void> _initializeWebSocket() async {
-    _channel = IOWebSocketChannel.connect('ws://106.51.106.43');
-    _channel.stream.listen((message) {
-      final data = json.decode(message);
-      log('Received message: $message');
-      if (data['id'] != null && data['message']['sdp'] != null) {
-        _handleSignalingMessage(data['message']);
-      } else if (data['message']['candidate'] != null) {
-        _peerConnection!.addCandidate(RTCIceCandidate(
-          data['message']['candidate']['candidate'],
-          data['message']['candidate']['sdpMid'],
-          data['message']['candidate']['sdpMLineIndex'],
-        ));
-      }
-    });
   }
 
   Future<void> _initializeWebRTC() async {
@@ -62,44 +43,47 @@ class _ChatPageState extends State<ChatPage> {
         setState(() {
           _messages.add(message.text);
         });
-        log('Received data message: ${message.text}');
       };
     };
 
     RTCDataChannelInit dataChannelDict = RTCDataChannelInit();
-    _dataChannel = await _peerConnection!
-        .createDataChannel('dataChannel', dataChannelDict);
+    _dataChannel = await _peerConnection!.createDataChannel('dataChannel', dataChannelDict);
     _dataChannel!.onMessage = (RTCDataChannelMessage message) {
       setState(() {
         _messages.add(message.text);
       });
-      log('Received data message: ${message.text}');
     };
 
+    var userBox = Hive.box<User>('users');
+    var currentUser = userBox.get('currentUser')!;
+
+    // Set remote description
     if (widget.user.sdp.isNotEmpty) {
       await _setRemoteDescription(widget.user.sdp);
     } else {
       _createOffer();
+    }
+
+    // Add local candidate
+    if (currentUser.candidate.isNotEmpty) {
+      RTCIceCandidate candidate = RTCIceCandidate(
+        json.decode(currentUser.candidate)['candidate'],
+        json.decode(currentUser.candidate)['sdpMid'],
+        json.decode(currentUser.candidate)['sdpMLineIndex'],
+      );
+      await _peerConnection!.addCandidate(candidate);
     }
   }
 
   void _createOffer() async {
     RTCSessionDescription description = await _peerConnection!.createOffer();
     await _peerConnection!.setLocalDescription(description);
-    _channel.sink.add(json.encode({
-      'targetId': widget.user.mobileNumber,
-      'message': {'sdp': description.toMap()}
-    }));
     log('Sent offer: ${description.toMap()}');
   }
 
   void _createAnswer() async {
     RTCSessionDescription description = await _peerConnection!.createAnswer();
     await _peerConnection!.setLocalDescription(description);
-    _channel.sink.add(json.encode({
-      'targetId': widget.user.mobileNumber,
-      'message': {'sdp': description.toMap()}
-    }));
     log('Sent answer: ${description.toMap()}');
   }
 
@@ -110,7 +94,6 @@ class _ChatPageState extends State<ChatPage> {
         message['sdp']['type'],
       );
       await _peerConnection!.setRemoteDescription(description);
-      log('Set remote description: ${description.toMap()}');
       if (description.type == 'offer') {
         _createAnswer();
       }
@@ -136,7 +119,6 @@ class _ChatPageState extends State<ChatPage> {
 
   void _sendMessage(String message) {
     _dataChannel!.send(RTCDataChannelMessage(message));
-    log('Sent data message: $message');
   }
 
   @override
@@ -185,7 +167,6 @@ class _ChatPageState extends State<ChatPage> {
   void dispose() {
     _dataChannel?.close();
     _peerConnection?.close();
-    _channel.sink.close();
     super.dispose();
   }
 }
