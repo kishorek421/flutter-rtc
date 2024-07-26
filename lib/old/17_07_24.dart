@@ -1,12 +1,7 @@
-import 'dart:developer';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'dart:convert';
 
 void main() => runApp(MyApp());
@@ -35,20 +30,21 @@ class _WebRTCPageState extends State<WebRTCPage> {
   TextEditingController _textController = TextEditingController();
   List<String> _messages = [];
 
-  static const platform =
-      MethodChannel('com.bw.flutter_rtc');
-
   @override
   void initState() {
     super.initState();
-    _initializeWebRTC();
-    _fetchSelfId();
-
     _channel = IOWebSocketChannel.connect('ws://106.51.106.43');
+    _initializeWebRTC();
+
     _channel.stream.listen((message) {
       final data = json.decode(message);
-      log('Received message: $message');
-      if (data['id'] != null && data['message']['sdp'] != null) {
+      print('Received message: $message');
+      if (data['type'] == 'id') {
+        setState(() {
+          _selfId = data['id'];
+        });
+        print('Assigned ID: $_selfId');
+      } else if (data['id'] != null && data['message']['sdp'] != null) {
         _handleSignalingMessage(data['message']);
       } else if (data['message']['candidate'] != null) {
         _peerConnection!.addCandidate(RTCIceCandidate(
@@ -57,38 +53,6 @@ class _WebRTCPageState extends State<WebRTCPage> {
           data['message']['candidate']['sdpMLineIndex'],
         ));
       }
-    });
-  }
-
-  Future<void> _fetchSelfId() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _selfId = prefs.getString('selfId');
-    });
-
-    if (_selfId == null) {
-      await _requestPhoneNumber();
-    }
-  }
-
-  Future<void> _requestPhoneNumber() async {
-    if (await Permission.phone.request().isGranted) {
-      try {
-        final String phoneNumber =
-            await platform.invokeMethod('getPhoneNumber');
-        log("phoneNumber ->>>>>>>>>>>>>> $phoneNumber");
-        await _saveSelfId(phoneNumber);
-      } on PlatformException catch (e) {
-        log("Failed to get phone number: '${e.message}'.");
-      }
-    }
-  }
-
-  Future<void> _saveSelfId(String id) async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setString('selfId', id);
-    setState(() {
-      _selfId = id;
     });
   }
 
@@ -106,7 +70,7 @@ class _WebRTCPageState extends State<WebRTCPage> {
           'targetId': _remoteId,
           'message': {'candidate': candidate.toMap()}
         }));
-        log('Sent candidate: ${candidate.toMap()}');
+        print('Sent candidate: ${candidate.toMap()}');
       }
     };
 
@@ -116,18 +80,17 @@ class _WebRTCPageState extends State<WebRTCPage> {
         setState(() {
           _messages.add(message.text);
         });
-        log('Received data message: ${message.text}');
+        print('Received data message: ${message.text}');
       };
     };
 
     RTCDataChannelInit dataChannelDict = RTCDataChannelInit();
-    _dataChannel = await _peerConnection!
-        .createDataChannel('dataChannel', dataChannelDict);
+    _dataChannel = await _peerConnection!.createDataChannel('dataChannel', dataChannelDict);
     _dataChannel!.onMessage = (RTCDataChannelMessage message) {
       setState(() {
         _messages.add(message.text);
       });
-      log('Received data message: ${message.text}');
+      print('Received data message: ${message.text}');
     };
   }
 
@@ -139,7 +102,7 @@ class _WebRTCPageState extends State<WebRTCPage> {
         'targetId': _remoteId,
         'message': {'sdp': description.toMap()}
       }));
-      log('Sent offer: ${description.toMap()}');
+      print('Sent offer: ${description.toMap()}');
     }
   }
 
@@ -151,7 +114,7 @@ class _WebRTCPageState extends State<WebRTCPage> {
         'targetId': _remoteId,
         'message': {'sdp': description.toMap()}
       }));
-      log('Sent answer: ${description.toMap()}');
+      print('Sent answer: ${description.toMap()}');
     }
   }
 
@@ -162,24 +125,16 @@ class _WebRTCPageState extends State<WebRTCPage> {
         message['sdp']['type'],
       );
       await _peerConnection!.setRemoteDescription(description);
-      log('Set remote description: ${description.toMap()}');
+      print('Set remote description: ${description.toMap()}');
       if (description.type == 'offer') {
         _createAnswer();
       }
     }
   }
 
-  void _connect() async {
-    if (_peerConnection!.getRemoteDescription() == null) {
-      _createOffer();
-    } else {
-      _createAnswer();
-    }
-  }
-
   void _sendMessage(String message) {
     _dataChannel!.send(RTCDataChannelMessage(message));
-    log('Sent data message: $message');
+    print('Sent data message: $message');
   }
 
   @override
@@ -193,12 +148,10 @@ class _WebRTCPageState extends State<WebRTCPage> {
           Text(
             _selfId ?? "Id not found",
           ),
-          SizedBox(
-            height: 10,
-          ),
+          SizedBox(height: 10,),
           TextField(
             controller: _remoteIdController,
-            decoration: InputDecoration(labelText: 'Remote Peer Mobile Number'),
+            decoration: InputDecoration(labelText: 'Remote Peer ID'),
             onChanged: (value) {
               setState(() {
                 _remoteId = value;
@@ -206,8 +159,16 @@ class _WebRTCPageState extends State<WebRTCPage> {
             },
           ),
           ElevatedButton(
-            onPressed: _connect,
-            child: Text('Connect'),
+            onPressed: _createOffer,
+            child: Text('Create Offer'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (_peerConnection?.getRemoteDescription() != null) {
+                _createAnswer();
+              }
+            },
+            child: Text('Create Answer'),
           ),
           Expanded(
             child: ListView.builder(
