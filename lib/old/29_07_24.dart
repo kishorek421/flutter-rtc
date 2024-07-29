@@ -1,14 +1,10 @@
-import 'dart:async';
-import 'dart:developer';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'dart:convert';
-import 'dart:math' as math;
-import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:math';
 
 void main() => runApp(MyApp());
 
@@ -30,27 +26,21 @@ class _WebRTCPageState extends State<WebRTCPage> {
   RTCPeerConnection? _peerConnection;
   RTCDataChannel? _dataChannel;
   late WebSocketChannel _channel;
-  final String _selfId = _generateRandomId(6);
+  String _selfId = _generateRandomId(6);
   String? _remoteId;
-  final TextEditingController _remoteIdController = TextEditingController();
-  final TextEditingController _textController = TextEditingController();
-  final List<String> _messages = [];
-  late StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
+  TextEditingController _remoteIdController = TextEditingController();
+  TextEditingController _textController = TextEditingController();
+  List<String> _messages = [];
 
   @override
   void initState() {
     super.initState();
-    _initializeWebSocket();
-    _initializeWebRTC();
-    _registerWithServer();
-    _monitorNetworkChanges();
-  }
-
-  void _initializeWebSocket() {
     _channel = IOWebSocketChannel.connect('ws://106.51.106.43');
+    _initializeWebRTC();
+
     _channel.stream.listen((message) {
       final data = json.decode(message);
-      log('Received message: $message');
+      print('Received message: $message');
       if (data['type'] == 'offer' || data['type'] == 'answer') {
         _handleSignalingMessage(data);
       } else if (data['type'] == 'candidate') {
@@ -65,6 +55,8 @@ class _WebRTCPageState extends State<WebRTCPage> {
         );
       }
     });
+
+    _registerWithServer();
   }
 
   Future<void> _initializeWebRTC() async {
@@ -83,7 +75,7 @@ class _WebRTCPageState extends State<WebRTCPage> {
           'id': _selfId,
           'candidate': candidate.toMap()
         }));
-        log('Sent candidate: ${candidate.toMap()}');
+        print('Sent candidate: ${candidate.toMap()}');
         Fluttertoast.showToast(
           msg: "ICE candidate sent: ${candidate.toMap()}",
           toastLength: Toast.LENGTH_SHORT,
@@ -97,7 +89,7 @@ class _WebRTCPageState extends State<WebRTCPage> {
         setState(() {
           _messages.add(message.text);
         });
-        log('Received data message: ${message.text}');
+        print('Received data message: ${message.text}');
         Fluttertoast.showToast(
           msg: "Data message received: ${message.text}",
           toastLength: Toast.LENGTH_SHORT,
@@ -110,13 +102,12 @@ class _WebRTCPageState extends State<WebRTCPage> {
     };
 
     RTCDataChannelInit dataChannelDict = RTCDataChannelInit();
-    _dataChannel = await _peerConnection!
-        .createDataChannel('dataChannel', dataChannelDict);
+    _dataChannel = await _peerConnection!.createDataChannel('dataChannel', dataChannelDict);
     _dataChannel!.onMessage = (RTCDataChannelMessage message) {
       setState(() {
         _messages.add(message.text);
       });
-      log('Received data message: ${message.text}');
+      print('Received data message: ${message.text}');
       Fluttertoast.showToast(
         msg: "Data message received: ${message.text}",
         toastLength: Toast.LENGTH_SHORT,
@@ -129,7 +120,7 @@ class _WebRTCPageState extends State<WebRTCPage> {
       'type': 'register',
       'id': _selfId,
     }));
-    log('Registered with ID: $_selfId');
+    print('Registered with ID: $_selfId');
     Fluttertoast.showToast(
       msg: "Registered with ID: $_selfId",
       toastLength: Toast.LENGTH_SHORT,
@@ -146,7 +137,7 @@ class _WebRTCPageState extends State<WebRTCPage> {
         'id': _selfId,
         'sdp': description.toMap()
       }));
-      log('Sent offer: ${description.toMap()}');
+      print('Sent offer: ${description.toMap()}');
       Fluttertoast.showToast(
         msg: "Offer sent: ${description.toMap()}",
         toastLength: Toast.LENGTH_SHORT,
@@ -161,7 +152,7 @@ class _WebRTCPageState extends State<WebRTCPage> {
         message['sdp']['type'],
       );
       await _peerConnection!.setRemoteDescription(description);
-      log('Set remote description: ${description.toMap()}');
+      print('Set remote description: ${description.toMap()}');
       Fluttertoast.showToast(
         msg: "Remote description set: ${description.toMap()}",
         toastLength: Toast.LENGTH_SHORT,
@@ -182,7 +173,7 @@ class _WebRTCPageState extends State<WebRTCPage> {
         'id': _selfId,
         'sdp': description.toMap()
       }));
-      log('Sent answer: ${description.toMap()}');
+      print('Sent answer: ${description.toMap()}');
       Fluttertoast.showToast(
         msg: "Answer sent: ${description.toMap()}",
         toastLength: Toast.LENGTH_SHORT,
@@ -192,33 +183,16 @@ class _WebRTCPageState extends State<WebRTCPage> {
 
   void _sendMessage(String message) {
     _dataChannel!.send(RTCDataChannelMessage(message));
-    log('Sent data message: $message');
+    print('Sent data message: $message');
     Fluttertoast.showToast(
       msg: "Data message sent: $message",
       toastLength: Toast.LENGTH_SHORT,
     );
   }
 
-  void _monitorNetworkChanges() {
-    _connectivitySubscription = Connectivity()
-        .onConnectivityChanged
-        .listen((List<ConnectivityResult> result) {
-      log('Network changed: $result');
-      Fluttertoast.showToast(
-        msg: "Network changed: $result",
-        toastLength: Toast.LENGTH_SHORT,
-      );
-      if (result.isNotEmpty) {
-        _initializeWebSocket();
-        _registerWithServer();
-        _connect();
-      }
-    });
-  }
-
   static String _generateRandomId(int length) {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    math.Random rnd = math.Random();
+    Random rnd = Random();
     return String.fromCharCodes(Iterable.generate(
         length, (_) => chars.codeUnitAt(rnd.nextInt(chars.length))));
   }
@@ -234,9 +208,7 @@ class _WebRTCPageState extends State<WebRTCPage> {
           Text(
             'Your ID: $_selfId',
           ),
-          SizedBox(
-            height: 10,
-          ),
+          SizedBox(height: 10,),
           TextField(
             controller: _remoteIdController,
             decoration: InputDecoration(labelText: 'Remote Peer ID'),
@@ -289,7 +261,6 @@ class _WebRTCPageState extends State<WebRTCPage> {
     _dataChannel?.close();
     _peerConnection?.close();
     _channel.sink.close();
-    _connectivitySubscription.cancel();
     super.dispose();
   }
 }
