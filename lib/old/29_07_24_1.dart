@@ -109,9 +109,12 @@ class _WebRTCPageState extends State<WebRTCPage> {
       );
     };
 
+    await _createDataChannel();
+  }
+
+  _createDataChannel() async {
     RTCDataChannelInit dataChannelDict = RTCDataChannelInit();
-    _dataChannel = await _peerConnection!
-        .createDataChannel('dataChannel', dataChannelDict);
+    _dataChannel = await _peerConnection!.createDataChannel('dataChannel', dataChannelDict);
     _dataChannel!.onMessage = (RTCDataChannelMessage message) {
       setState(() {
         _messages.add(message.text);
@@ -228,7 +231,7 @@ class _WebRTCPageState extends State<WebRTCPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Data Channel'),
+        title: Text('WebRTC Data Channel'),
       ),
       body: Column(
         children: <Widget>[
