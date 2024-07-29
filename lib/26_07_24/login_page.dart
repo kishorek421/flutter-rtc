@@ -1,16 +1,17 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_rtc/models/user.dart';
+import 'package:flutter_rtc/26_07_24/list_page.dart';
+import 'package:flutter_rtc/26_07_24/models/user.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:hive/hive.dart';
 
-class AddUserPage extends StatefulWidget {
+class LoginPage extends StatefulWidget {
   @override
-  _AddUserPageState createState() => _AddUserPageState();
+  _LoginPageState createState() => _LoginPageState();
 }
 
-class _AddUserPageState extends State<AddUserPage> {
+class _LoginPageState extends State<LoginPage> {
   TextEditingController _phoneNumberController = TextEditingController();
   RTCPeerConnection? _peerConnection;
 
@@ -31,28 +32,28 @@ class _AddUserPageState extends State<AddUserPage> {
     _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
       if (candidate != null) {
         var userBox = Hive.box<User>('users');
-        var newUser = userBox.get(_phoneNumberController.text)!;
-        newUser.candidate = json.encode(candidate.toMap());
-        userBox.put(_phoneNumberController.text, newUser);
+        var currentUser = userBox.get('currentUser')!;
+        currentUser.candidate = json.encode(candidate.toMap());
+        userBox.put('currentUser', currentUser);
       }
     };
   }
 
-  Future<void> _addNewUser() async {
+  Future<void> _saveCurrentUser(String phoneNumber) async {
     var userBox = Hive.box<User>('users');
-    var user = User(_phoneNumberController.text, '', '');
-    userBox.put(_phoneNumberController.text, user);
+    var user = User(phoneNumber, '', '');
+    userBox.put('currentUser', user);
 
     RTCSessionDescription description = await _peerConnection!.createOffer();
     await _peerConnection!.setLocalDescription(description);
     user.sdp = json.encode(description.toMap());
-    userBox.put(_phoneNumberController.text, user);
+    userBox.put('currentUser', user);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Add New User')),
+      appBar: AppBar(title: Text('Login')),
       body: Padding(
         padding: const EdgeInsets.all(8.0),
         child: Column(
@@ -63,10 +64,13 @@ class _AddUserPageState extends State<AddUserPage> {
             ),
             ElevatedButton(
               onPressed: () async {
-                await _addNewUser();
-                Navigator.pop(context);
+                await _saveCurrentUser(_phoneNumberController.text);
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => MainPage()),
+                );
               },
-              child: Text('Add'),
+              child: Text('Save'),
             ),
           ],
         ),
