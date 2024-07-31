@@ -209,26 +209,11 @@ class _WebRTCPageState extends State<WebRTCPage> {
         toastLength: Toast.LENGTH_SHORT,
       );
       if (result.isNotEmpty) {
-        _reinitializeConnections();
+        _initializeWebSocket();
+        _registerWithServer();
+        _connect();
       }
     });
-  }
-
-  void _reinitializeConnections() async {
-    await _disposeWebRTC();
-    _initializeWebSocket();
-    await _initializeWebRTC();
-    _registerWithServer();
-    if (_remoteId != null) {
-      _connect();
-    }
-  }
-
-  Future<void> _disposeWebRTC() async {
-    _dataChannel?.close();
-    _peerConnection?.close();
-    _dataChannel = null;
-    _peerConnection = null;
   }
 
   static String _generateRandomId(int length) {
